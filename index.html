@@ -122,12 +122,36 @@
     #highscores h3 { text-align: center; margin-bottom: 0.5em; color: #8cf; }
     #highscores ol { padding-left: 1.4em; }
     #highscores li { margin: 0.25em 0; }
+    #mute-btn {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      background: rgba(20,30,50,0.7);
+      border: 1px solid #456;
+      color: #ccc;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: none;
+      pointer-events: auto;
+    }
+    #mute-btn:active { background: rgba(40,60,90,0.9); }
+    @media (max-width: 600px) {
+      #hud { font-size: 0.9rem; padding: 8px 12px; }
+      #health-bar-wrap { width: 110px; }
+      .controls-hint { font-size: 0.75rem; bottom: 12px; }
+      button { padding: 14px 40px; font-size: 1.2rem; min-height: 48px; }
+      input[type="text"] { font-size: 16px; padding: 14px 16px; }
+    }
   </style>
 </head>
 <body>
   <div id="start-screen">
     <h1>PARATROOPER DEFENSE</h1>
-    <p class="subtitle">Protect the cannon from planes &amp; paratroopers</p>
+    <p class="subtitle">Protect the cannon from planes & paratroopers</p>
     <label for="player-name">Enter your name</label>
     <input type="text" id="player-name" maxlength="16" placeholder="Commander" autocomplete="off" />
     <button id="start-btn">START GAME</button>
@@ -154,8 +178,9 @@
     </div>
   </div>
 
+  <button id="mute-btn" type="button" aria-label="Toggle sound">🔊 Sound</button>
   <canvas id="game" width="800" height="600"></canvas>
-  <div class="controls-hint" id="hint" style="display:none">← → or Mouse to aim · Space / Click to shoot</div>
+  <div class="controls-hint" id="hint" style="display:none">Drag to aim · Tap to shoot</div>
 
   <script>
 (function () {
@@ -172,13 +197,87 @@
   const finalMsg = document.getElementById('final-msg');
   const nameInput = document.getElementById('player-name');
   const scoreList = document.getElementById('score-list');
+  const muteBtn = document.getElementById('mute-btn');
+
+  let audioCtx = null;
+  let soundEnabled = true;
+  try { soundEnabled = localStorage.getItem('paratrooper_mute') !== '1'; } catch (_) {}
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, type, vol, slideTo) {
+    if (!soundEnabled) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo != null) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + duration);
+    gain.gain.setValueAtTime(vol, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  }
+
+  function sfxShoot() {
+    playTone(180, 0.06, 'square', 0.08, 90);
+    playTone(320, 0.04, 'triangle', 0.05, 200);
+  }
+  function sfxPlaneHit() {
+    playTone(120, 0.15, 'sawtooth', 0.12, 40);
+    playTone(90, 0.2, 'square', 0.08, 30);
+  }
+  function sfxSoldierHit() {
+    playTone(440, 0.08, 'triangle', 0.1, 220);
+    playTone(660, 0.05, 'sine', 0.06, 330);
+  }
+  function sfxDamage() {
+    playTone(80, 0.25, 'sawtooth', 0.14, 35);
+    playTone(55, 0.3, 'square', 0.1, 25);
+  }
+  function sfxGameOver() {
+    playTone(200, 0.2, 'sawtooth', 0.12, 100);
+    setTimeout(function() { playTone(150, 0.25, 'sawtooth', 0.1, 70); }, 180);
+    setTimeout(function() { playTone(90, 0.4, 'triangle', 0.12, 40); }, 360);
+  }
+  function sfxStart() {
+    playTone(330, 0.1, 'triangle', 0.08, 440);
+    setTimeout(function() { playTone(440, 0.12, 'triangle', 0.08, 550); }, 100);
+  }
+
+  function updateMuteUI() {
+    if (!muteBtn) return;
+    muteBtn.textContent = soundEnabled ? '🔊 Sound' : '🔇 Muted';
+  }
+  updateMuteUI();
+  if (muteBtn) {
+    muteBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      soundEnabled = !soundEnabled;
+      try { localStorage.setItem('paratrooper_mute', soundEnabled ? '0' : '1'); } catch (_) {}
+      updateMuteUI();
+      if (soundEnabled) { ensureAudio(); sfxStart(); }
+    });
+  }
 
   function resize() {
-    const maxW = Math.min(window.innerWidth, 900);
-    const maxH = Math.min(window.innerHeight, 700);
-    const scale = Math.min(maxW / 800, maxH / 600);
-    canvas.style.width = (800 * scale) + 'px';
-    canvas.style.height = (600 * scale) + 'px';
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight - 8;
+    const scale = Math.min(maxW / 800, maxH / 600, 1.25);
+    canvas.style.width = Math.floor(800 * scale) + 'px';
+    canvas.style.height = Math.floor(600 * scale) + 'px';
   }
   window.addEventListener('resize', resize);
   resize();
@@ -207,8 +306,8 @@
   }
   function saveScore(name, sc) {
     const list = loadScores();
-    list.push({ name, score: sc, date: Date.now() });
-    list.sort((a, b) => b.score - a.score);
+    list.push({ name: name, score: sc, date: Date.now() });
+    list.sort(function(a, b) { return b.score - a.score; });
     const top = list.slice(0, 8);
     localStorage.setItem('paratrooper_scores', JSON.stringify(top));
     return top;
@@ -216,7 +315,7 @@
   function renderHighScores() {
     const list = loadScores();
     scoreList.innerHTML = list.length
-      ? list.map(s => `<li><strong>${escapeHtml(s.name)}</strong> — ${s.score}</li>`).join('')
+      ? list.map(function(s) { return '<li><strong>' + escapeHtml(s.name) + '</strong> — ' + s.score + '</li>'; }).join('')
       : '<li style="opacity:0.6">No scores yet</li>';
   }
   function escapeHtml(t) {
@@ -226,43 +325,60 @@
   }
   renderHighScores();
 
-  window.addEventListener('keydown', e => {
+  window.addEventListener('keydown', function(e) {
     keys[e.code] = true;
     if (e.code === 'Space' && gameRunning) {
       e.preventDefault();
       shoot();
     }
   });
-  window.addEventListener('keyup', e => { keys[e.code] = false; });
+  window.addEventListener('keyup', function(e) { keys[e.code] = false; });
 
-  canvas.addEventListener('mousemove', e => {
+  canvas.addEventListener('mousemove', function(e) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     mouseX = (e.clientX - rect.left) * scaleX;
   });
-  canvas.addEventListener('click', e => {
+  canvas.addEventListener('click', function(e) {
     if (!gameRunning) return;
     shoot();
   });
-  canvas.addEventListener('touchstart', e => {
+
+  let touchStartX = 0, touchStartY = 0, touchMoved = false;
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (!gameRunning) return;
+    ensureAudio();
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchMoved = false;
+    mouseX = (touch.clientX - rect.left) * scaleX;
+  }, { passive: false });
+  canvas.addEventListener('touchmove', function(e) {
     e.preventDefault();
     if (!gameRunning) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const touch = e.touches[0];
+    if (Math.abs(touch.clientX - touchStartX) > 8 || Math.abs(touch.clientY - touchStartY) > 8) {
+      touchMoved = true;
+    }
     mouseX = (touch.clientX - rect.left) * scaleX;
-    shoot();
   }, { passive: false });
-  canvas.addEventListener('touchmove', e => {
+  canvas.addEventListener('touchend', function(e) {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const touch = e.touches[0];
-    mouseX = (touch.clientX - rect.left) * scaleX;
+    if (!gameRunning) return;
+    if (!touchMoved) shoot();
+  }, { passive: false });
+  document.body.addEventListener('touchmove', function(e) {
+    if (gameRunning) e.preventDefault();
   }, { passive: false });
 
   document.getElementById('start-btn').addEventListener('click', startGame);
-  document.getElementById('restart-btn').addEventListener('click', () => {
+  document.getElementById('restart-btn').addEventListener('click', function() {
     gameOverScreen.style.display = 'none';
     startScreen.style.display = 'flex';
     renderHighScores();
@@ -290,6 +406,9 @@
     healthBar.style.width = '100%';
     healthBar.style.background = 'linear-gradient(90deg, #2ecc71, #27ae60)';
     if (hpNum) hpNum.textContent = '100';
+    if (muteBtn) muteBtn.style.display = 'block';
+    ensureAudio();
+    sfxStart();
     requestAnimationFrame(loop);
   }
 
@@ -306,6 +425,7 @@
       vy: Math.sin(rad) * speed,
       life: 90
     });
+    sfxShoot();
   }
 
   function spawnPlane() {
@@ -313,7 +433,7 @@
     const y = 40 + Math.random() * 120;
     planes.push({
       x: fromLeft ? -60 : 860,
-      y,
+      y: y,
       vx: fromLeft ? (1.4 + Math.random() * 1.2) : -(1.4 + Math.random() * 1.2),
       dropTimer: 40 + Math.random() * 80,
       dropped: 0,
@@ -322,23 +442,22 @@
     });
   }
 
-  function addParticles(x, y, color, count = 8) {
+  function addParticles(x, y, color, count) {
+    count = count || 8;
     for (let i = 0; i < count; i++) {
       particles.push({
-        x, y,
+        x: x, y: y,
         vx: (Math.random() - 0.5) * 5,
         vy: (Math.random() - 0.5) * 5,
         life: 20 + Math.random() * 20,
-        color
+        color: color
       });
     }
   }
 
   function update(dt) {
-    // Aim — full 180° range: -90° (left horizontal) to +90° (right horizontal)
     if (keys['ArrowLeft'] || keys['KeyA']) angle = Math.max(-90, angle - 4.5);
     if (keys['ArrowRight'] || keys['KeyD']) angle = Math.min(90, angle + 4.5);
-    // Mouse / touch aim: map full canvas width to full 180°
     const targetAngle = ((mouseX - 400) / 400) * 90;
     angle = Math.max(-90, Math.min(90, targetAngle));
 
@@ -402,6 +521,7 @@
         if (health < 40) healthBar.style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
         else if (health < 70) healthBar.style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
         addParticles(400, 560, '#e74c3c', 12);
+        sfxDamage();
         groundSoldiers.splice(i, 1);
         if (health <= 0) endGame();
       }
@@ -417,6 +537,7 @@
           planes.splice(pi, 1);
           score += 100;
           scoreEl.textContent = score;
+          sfxPlaneHit();
           hit = true;
           break;
         }
@@ -429,6 +550,7 @@
           soldiers.splice(si, 1);
           score += 25;
           scoreEl.textContent = score;
+          sfxSoldierHit();
           hit = true;
           break;
         }
@@ -461,7 +583,6 @@
     ctx.fillStyle = '#555';
     ctx.fillRect(385, 540, 30, 25);
 
-    // Cannon barrel (rotates full 180°: -90 left ↔ +90 right)
     ctx.save();
     ctx.translate(400, 545);
     ctx.rotate(angle * Math.PI / 180);
@@ -474,13 +595,15 @@
     ctx.restore();
 
     ctx.fillStyle = '#fff';
-    for (const b of bullets) {
+    for (let i = 0; i < bullets.length; i++) {
+      const b = bullets[i];
       ctx.beginPath();
       ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    for (const p of planes) {
+    for (let i = 0; i < planes.length; i++) {
+      const p = planes[i];
       ctx.save();
       ctx.translate(p.x, p.y);
       if (p.vx < 0) ctx.scale(-1, 1);
@@ -500,7 +623,8 @@
       ctx.restore();
     }
 
-    for (const s of soldiers) {
+    for (let i = 0; i < soldiers.length; i++) {
+      const s = soldiers[i];
       ctx.fillStyle = '#e74c3c';
       ctx.beginPath();
       ctx.ellipse(s.x, s.y - 18, 14, 8, 0, 0, Math.PI * 2);
@@ -521,7 +645,8 @@
       ctx.fill();
     }
 
-    for (const g of groundSoldiers) {
+    for (let i = 0; i < groundSoldiers.length; i++) {
+      const g = groundSoldiers[i];
       ctx.fillStyle = '#2c3e50';
       ctx.fillRect(g.x - 6, g.y - 16, 12, 16);
       ctx.fillStyle = '#f5cba7';
@@ -539,7 +664,8 @@
       ctx.stroke();
     }
 
-    for (const p of particles) {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
       ctx.globalAlpha = Math.min(1, p.life / 15);
       ctx.fillStyle = p.color;
       ctx.beginPath();
@@ -563,8 +689,10 @@
     gameRunning = false;
     hud.style.display = 'none';
     hint.style.display = 'none';
+    if (muteBtn) muteBtn.style.display = 'none';
+    sfxGameOver();
     const top = saveScore(playerName, score);
-    finalMsg.innerHTML = `<strong>${escapeHtml(playerName)}</strong> scored <strong>${score}</strong> points!`;
+    finalMsg.innerHTML = '<strong>' + escapeHtml(playerName) + '</strong> scored <strong>' + score + '</strong> points!';
     gameOverScreen.style.display = 'flex';
   }
 
