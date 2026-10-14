@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Paratrooper Defense</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0f1a;
+      color: #e0e6f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #start-screen, #game-over-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at center, #1a2744 0%, #0a0f1a 70%);
+      z-index: 10;
+      text-align: center;
+      padding: 20px;
+    }
+    #game-over-screen { display: none; }
+    h1 {
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      margin-bottom: 0.4em;
+      letter-spacing: 0.05em;
+      text-shadow: 0 0 20px #4af, 0 0 40px #28f;
+    }
+    .subtitle { opacity: 0.75; margin-bottom: 1.5em; font-size: 1.05rem; }
+    label { display: block; margin-bottom: 0.4em; font-size: 0.95rem; }
+    input[type="text"] {
+      background: #152033;
+      border: 2px solid #3a5a8a;
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 1.1rem;
+      border-radius: 8px;
+      width: min(280px, 80vw);
+      text-align: center;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: #4af; }
+    button {
+      margin-top: 1.2em;
+      background: linear-gradient(180deg, #3a7bd5, #1e4a9a);
+      border: none;
+      color: white;
+      padding: 12px 36px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(30, 100, 200, 0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30, 100, 200, 0.55); }
+    button:active { transform: translateY(0); }
+    #hud {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      z-index: 5;
+      pointer-events: none;
+      text-shadow: 0 1px 3px #000;
+    }
+    #health-bar-wrap {
+      width: 140px;
+      height: 14px;
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    #health-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #2ecc71, #27ae60);
+      transition: width 0.2s;
+    }
+    canvas {
+      display: block;
+      background: linear-gradient(180deg, #0b1a2e 0%, #1a3a5c 60%, #2d4a3a 60%, #1a2f1a 100%);
+      max-width: 100vw;
+      max-height: 100vh;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    .controls-hint {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      opacity: 0.6;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #highscores {
+      margin-top: 1.5em;
+      max-width: 320px;
+      width: 100%;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    #highscores h3 { text-align: center; margin-bottom: 0.5em; color: #8cf; }
+    #highscores ol { padding-left: 1.4em; }
+    #highscores li { margin: 0.25em 0; }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <h1>PARATROOPER DEFENSE</h1>
+    <p class="subtitle">Protect the cannon from planes &amp; paratroopers</p>
+    <label for="player-name">Enter your name</label>
+    <input type="text" id="player-name" maxlength="16" placeholder="Commander" autocomplete="off" />
+    <button id="start-btn">START GAME</button>
+    <div id="highscores">
+      <h3>Top Scores</h3>
+      <ol id="score-list"></ol>
+    </div>
+  </div>
+
+  <div id="game-over-screen">
+    <h1>GAME OVER</h1>
+    <p class="subtitle" id="final-msg"></p>
+    <button id="restart-btn">PLAY AGAIN</button>
+  </div>
+
+  <div id="hud" style="display:none">
+    <div>
+      <div>Score: <span id="score">0</span></div>
+      <div style="font-size:0.85rem;opacity:0.8">Player: <span id="hud-name"></span></div>
+    </div>
+    <div style="text-align:right">
+      <div>Cannon HP: <span id="hp-num">100</span>/100</div>
+      <div id="health-bar-wrap"><div id="health-bar"></div></div>
+    </div>
+  </div>
+
+  <canvas id="game" width="800" height="600"></canvas>
+  <div class="controls-hint" id="hint" style="display:none">← → or Mouse to aim · Space / Click to shoot</div>
+
+  <script>
+(function () {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('start-screen');
+  const gameOverScreen = document.getElementById('game-over-screen');
+  const hud = document.getElementById('hud');
+  const hint = document.getElementById('hint');
+  const scoreEl = document.getElementById('score');
+  const healthBar = document.getElementById('health-bar');
+  const hpNum = document.getElementById('hp-num');
+  const hudName = document.getElementById('hud-name');
+  const finalMsg = document.getElementById('final-msg');
+  const nameInput = document.getElementById('player-name');
+  const scoreList = document.getElementById('score-list');
+
+  function resize() {
+    const maxW = Math.min(window.innerWidth, 900);
+    const maxH = Math.min(window.innerHeight, 700);
+    const scale = Math.min(maxW / 800, maxH / 600);
+    canvas.style.width = (800 * scale) + 'px';
+    canvas.style.height = (600 * scale) + 'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  let playerName = 'Commander';
+  let score = 0;
+  let health = 100;
+  let angle = 0;
+  let bullets = [];
+  let planes = [];
+  let soldiers = [];
+  let groundSoldiers = [];
+  let particles = [];
+  let gameRunning = false;
+  let lastPlaneSpawn = 0;
+  let planeSpawnInterval = 2800;
+  let keys = {};
+  let mouseX = 400;
+  let lastShot = 0;
+  const SHOT_COOLDOWN = 180;
+
+  function loadScores() {
+    try {
+      return JSON.parse(localStorage.getItem('paratrooper_scores') || '[]');
+    } catch { return []; }
+  }
+  function saveScore(name, sc) {
+    const list = loadScores();
+    list.push({ name, score: sc, date: Date.now() });
+    list.sort((a, b) => b.score - a.score);
+    const top = list.slice(0, 8);
+    localStorage.setItem('paratrooper_scores', JSON.stringify(top));
+    return top;
+  }
+  function renderHighScores() {
+    const list = loadScores();
+    scoreList.innerHTML = list.length
+      ? list.map(s => `<li><strong>${escapeHtml(s.name)}</strong> — ${s.score}</li>`).join('')
+      : '<li style="opacity:0.6">No scores yet</li>';
+  }
+  function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+  }
+  renderHighScores();
+
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space' && gameRunning) {
+      e.preventDefault();
+      shoot();
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    mouseX = (e.clientX - rect.left) * scaleX;
+  });
+  canvas.addEventListener('click', e => {
+    if (!gameRunning) return;
+    shoot();
+  });
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (!gameRunning) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const touch = e.touches[0];
+    mouseX = (touch.clientX - rect.left) * scaleX;
+    shoot();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const touch = e.touches[0];
+    mouseX = (touch.clientX - rect.left) * scaleX;
+  }, { passive: false });
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  document.getElementById('restart-btn').addEventListener('click', () => {
+    gameOverScreen.style.display = 'none';
+    startScreen.style.display = 'flex';
+    renderHighScores();
+  });
+
+  function startGame() {
+    playerName = (nameInput.value || 'Commander').trim().slice(0, 16) || 'Commander';
+    score = 0;
+    health = 100;
+    angle = 0;
+    bullets = [];
+    planes = [];
+    soldiers = [];
+    groundSoldiers = [];
+    particles = [];
+    lastPlaneSpawn = 0;
+    planeSpawnInterval = 2800;
+    gameRunning = true;
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    hud.style.display = 'flex';
+    hint.style.display = 'block';
+    hudName.textContent = playerName;
+    scoreEl.textContent = '0';
+    healthBar.style.width = '100%';
+    healthBar.style.background = 'linear-gradient(90deg, #2ecc71, #27ae60)';
+    if (hpNum) hpNum.textContent = '100';
+    requestAnimationFrame(loop);
+  }
+
+  function shoot() {
+    const now = performance.now();
+    if (now - lastShot < SHOT_COOLDOWN) return;
+    lastShot = now;
+    const rad = (angle - 90) * Math.PI / 180;
+    const speed = 11;
+    bullets.push({
+      x: 400,
+      y: 545,
+      vx: Math.cos(rad) * speed,
+      vy: Math.sin(rad) * speed,
+      life: 90
+    });
+  }
+
+  function spawnPlane() {
+    const fromLeft = Math.random() > 0.5;
+    const y = 40 + Math.random() * 120;
+    planes.push({
+      x: fromLeft ? -60 : 860,
+      y,
+      vx: fromLeft ? (1.4 + Math.random() * 1.2) : -(1.4 + Math.random() * 1.2),
+      dropTimer: 40 + Math.random() * 80,
+      dropped: 0,
+      maxDrop: 2 + Math.floor(Math.random() * 3),
+      hp: 1
+    });
+  }
+
+  function addParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 5,
+        vy: (Math.random() - 0.5) * 5,
+        life: 20 + Math.random() * 20,
+        color
+      });
+    }
+  }
+
+  function update(dt) {
+    // Aim — full 180° range: -90° (left horizontal) to +90° (right horizontal)
+    if (keys['ArrowLeft'] || keys['KeyA']) angle = Math.max(-90, angle - 4.5);
+    if (keys['ArrowRight'] || keys['KeyD']) angle = Math.min(90, angle + 4.5);
+    // Mouse / touch aim: map full canvas width to full 180°
+    const targetAngle = ((mouseX - 400) / 400) * 90;
+    angle = Math.max(-90, Math.min(90, targetAngle));
+
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.x += b.vx;
+      b.y += b.vy;
+      b.life--;
+      if (b.life <= 0 || b.x < -20 || b.x > 820 || b.y < -20 || b.y > 620) {
+        bullets.splice(i, 1);
+      }
+    }
+
+    const now = performance.now();
+    if (now - lastPlaneSpawn > planeSpawnInterval) {
+      spawnPlane();
+      lastPlaneSpawn = now;
+      planeSpawnInterval = Math.max(900, planeSpawnInterval - 40);
+    }
+    for (let i = planes.length - 1; i >= 0; i--) {
+      const p = planes[i];
+      p.x += p.vx;
+      p.dropTimer--;
+      if (p.dropTimer <= 0 && p.dropped < p.maxDrop && p.x > 50 && p.x < 750) {
+        soldiers.push({
+          x: p.x,
+          y: p.y + 12,
+          vy: 0.6 + Math.random() * 0.4,
+          parachute: true,
+          sway: Math.random() * Math.PI * 2
+        });
+        p.dropped++;
+        p.dropTimer = 25 + Math.random() * 40;
+      }
+      if (p.x < -80 || p.x > 880) planes.splice(i, 1);
+    }
+
+    for (let i = soldiers.length - 1; i >= 0; i--) {
+      const s = soldiers[i];
+      s.y += s.vy;
+      s.sway += 0.05;
+      s.x += Math.sin(s.sway) * 0.35;
+      if (s.y >= 560) {
+        groundSoldiers.push({
+          x: s.x,
+          y: 560,
+          vx: s.x < 400 ? 0.7 : -0.7,
+          damageDealt: false
+        });
+        soldiers.splice(i, 1);
+      }
+    }
+
+    for (let i = groundSoldiers.length - 1; i >= 0; i--) {
+      const g = groundSoldiers[i];
+      g.x += g.vx;
+      if (Math.abs(g.x - 400) < 25) {
+        health = Math.max(0, health - 8);
+        healthBar.style.width = health + '%';
+        if (hpNum) hpNum.textContent = String(health);
+        if (health < 40) healthBar.style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
+        else if (health < 70) healthBar.style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
+        addParticles(400, 560, '#e74c3c', 12);
+        groundSoldiers.splice(i, 1);
+        if (health <= 0) endGame();
+      }
+    }
+
+    for (let bi = bullets.length - 1; bi >= 0; bi--) {
+      const b = bullets[bi];
+      let hit = false;
+      for (let pi = planes.length - 1; pi >= 0; pi--) {
+        const p = planes[pi];
+        if (Math.hypot(b.x - p.x, b.y - p.y) < 28) {
+          addParticles(p.x, p.y, '#ff6b35', 14);
+          planes.splice(pi, 1);
+          score += 100;
+          scoreEl.textContent = score;
+          hit = true;
+          break;
+        }
+      }
+      if (hit) { bullets.splice(bi, 1); continue; }
+      for (let si = soldiers.length - 1; si >= 0; si--) {
+        const s = soldiers[si];
+        if (Math.hypot(b.x - s.x, b.y - s.y) < 16) {
+          addParticles(s.x, s.y, '#f1c40f', 8);
+          soldiers.splice(si, 1);
+          score += 25;
+          scoreEl.textContent = score;
+          hit = true;
+          break;
+        }
+      }
+      if (hit) bullets.splice(bi, 1);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, 800, 600);
+
+    ctx.fillStyle = '#2d4a3a';
+    ctx.fillRect(0, 560, 800, 40);
+    ctx.fillStyle = '#1a2f1a';
+    ctx.fillRect(0, 575, 800, 25);
+
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.arc(400, 560, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#555';
+    ctx.fillRect(385, 540, 30, 25);
+
+    // Cannon barrel (rotates full 180°: -90 left ↔ +90 right)
+    ctx.save();
+    ctx.translate(400, 545);
+    ctx.rotate(angle * Math.PI / 180);
+    ctx.fillStyle = '#6a6a6a';
+    ctx.fillRect(-7, -58, 14, 62);
+    ctx.fillStyle = '#8a8a8a';
+    ctx.fillRect(-5, -56, 10, 18);
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-8, -62, 16, 6);
+    ctx.restore();
+
+    ctx.fillStyle = '#fff';
+    for (const b of bullets) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (const p of planes) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (p.vx < 0) ctx.scale(-1, 1);
+      ctx.fillStyle = '#5a6a7a';
+      ctx.fillRect(-28, -8, 56, 16);
+      ctx.fillStyle = '#4a5a6a';
+      ctx.fillRect(-10, -18, 30, 8);
+      ctx.fillRect(-28, -16, 10, 10);
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(28, 0);
+      ctx.lineTo(38, -6);
+      ctx.moveTo(28, 0);
+      ctx.lineTo(38, 6);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const s of soldiers) {
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y - 18, 14, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s.x - 10, s.y - 14);
+      ctx.lineTo(s.x, s.y);
+      ctx.moveTo(s.x + 10, s.y - 14);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(s.x - 5, s.y, 10, 14);
+      ctx.fillStyle = '#f5cba7';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (const g of groundSoldiers) {
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(g.x - 6, g.y - 16, 12, 16);
+      ctx.fillStyle = '#f5cba7';
+      ctx.beginPath();
+      ctx.arc(g.x, g.y - 18, 5, 0, Math.PI * 2);
+      ctx.fill();
+      const leg = Math.sin(performance.now() / 100) * 4;
+      ctx.strokeStyle = '#1a252f';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(g.x - 3, g.y);
+      ctx.lineTo(g.x - 3 + leg, g.y + 8);
+      ctx.moveTo(g.x + 3, g.y);
+      ctx.lineTo(g.x + 3 - leg, g.y + 8);
+      ctx.stroke();
+    }
+
+    for (const p of particles) {
+      ctx.globalAlpha = Math.min(1, p.life / 15);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  let lastTime = 0;
+  function loop(ts) {
+    if (!gameRunning) return;
+    const dt = Math.min(32, ts - lastTime);
+    lastTime = ts;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function endGame() {
+    gameRunning = false;
+    hud.style.display = 'none';
+    hint.style.display = 'none';
+    const top = saveScore(playerName, score);
+    finalMsg.innerHTML = `<strong>${escapeHtml(playerName)}</strong> scored <strong>${score}</strong> points!`;
+    gameOverScreen.style.display = 'flex';
+  }
+
+  draw();
+})();
+  </script>
+</body>
+</html>
