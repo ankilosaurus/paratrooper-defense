@@ -189,20 +189,20 @@
 
   <script>
 (function () {
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  const startScreen = document.getElementById('start-screen');
-  const gameOverScreen = document.getElementById('game-over-screen');
-  const hud = document.getElementById('hud');
-  const hint = document.getElementById('hint');
-  const scoreEl = document.getElementById('score');
-  const healthBar = document.getElementById('health-bar');
-  const hpNum = document.getElementById('hp-num');
-  const hudName = document.getElementById('hud-name');
-  const finalMsg = document.getElementById('final-msg');
-  const nameInput = document.getElementById('player-name');
-  const scoreList = document.getElementById('score-list');
-  const muteBtn = document.getElementById('mute-btn');
+  const canvas = document.getElementById('game);
+  const ctx = canvas.getContext('2d);
+  const startScreen = document.getElementById('start-screen);
+  const gameOverScreen = document.getElementById('game-over-screen);
+  const hud = document.getElementById('hud);
+  const hint = document.getElementById('hint);
+  const scoreEl = document.getElementById('score);
+  const healthBar = document.getElementById('health-bar);
+  const hpNum = document.getElementById('hp-num);
+  const hudName = document.getElementById('hud-name);
+  const finalMsg = document.getElementById('final-msg);
+  const nameInput = document.getElementById('player-name);
+  const scoreList = document.getElementById('score-list);
+  const muteBtn = document.getElementById('mute-btn);
 
   let audioCtx = null;
   let soundEnabled = true;
@@ -307,7 +307,7 @@
 
   function loadScores() {
     try {
-      return JSON.parse(localStorage.getItem('paratrooper_scores') || '[]');
+      return JSON.parse(localStorage.getItem('paratrooper_scores') || '[]);
     } catch (e) { return []; }
   }
   function saveScore(name, sc) {
@@ -325,7 +325,7 @@
       : '<li style="opacity:0.6">No scores yet</li>';
   }
   function escapeHtml(t) {
-    const d = document.createElement('div');
+    const d = document.createElement('div);
     d.textContent = t;
     return d.innerHTML;
   }
@@ -362,6 +362,7 @@
     touchStartY = touch.clientY;
     touchMoved = false;
     mouseX = (touch.clientX - rect.left) * scaleX;
+    angle = Math.max(-90, Math.min(90, ((mouseX - 400) / 400) * 90));
   }, { passive: false });
   canvas.addEventListener('touchmove', function(e) {
     e.preventDefault();
@@ -369,7 +370,7 @@
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const touch = e.touches[0];
-    if (Math.abs(touch.clientX - touchStartX) > 8 || Math.abs(touch.clientY - touchStartY) > 8) {
+    if (Math.abs(touch.clientX - touchStartX) > 3 || Math.abs(touch.clientY - touchStartY) > 3) {
       touchMoved = true;
     }
     mouseX = (touch.clientX - rect.left) * scaleX;
@@ -466,10 +467,11 @@
   }
 
   function update(dt) {
-    if (keys['ArrowLeft'] || keys['KeyA']) angle = Math.max(-90, angle - 4.5);
-    if (keys['ArrowRight'] || keys['KeyD']) angle = Math.min(90, angle + 4.5);
+    if (keys['ArrowLeft'] || keys['KeyA']) angle = Math.max(-90, angle - 7);
+    if (keys['ArrowRight'] || keys['KeyD']) angle = Math.min(90, angle + 7);
     const targetAngle = ((mouseX - 400) / 400) * 90;
-    angle = Math.max(-90, Math.min(90, targetAngle));
+    angle += (targetAngle - angle) * 0.55;
+    angle = Math.max(-90, Math.min(90, angle));
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
@@ -513,7 +515,7 @@
       s.sway += 0.05;
       s.x += Math.sin(s.sway) * 0.35;
       if (s.y >= 560) {
-        groundSoldiers.push({
+        groundSoldiers.push([
           x: s.x,
           y: 560,
           vx: (s.x < 400 ? 1 : -1) * (gameTime < 40000 ? 0.35 : 0.55),
