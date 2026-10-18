@@ -520,7 +520,7 @@
           y: 560,
           vx: (s.x < 400 ? 1 : -1) * (gameTime < 40000 ? 0.35 : 0.55),
           damageDealt: false
-        });
+        ]);
         soldiers.splice(i, 1);
       }
     }
@@ -600,118 +600,100 @@
     ctx.save();
     ctx.translate(400, 545);
     ctx.rotate(angle * Math.PI / 180);
-    ctx.fillStyle = '#6a6a6a';
-    ctx.fillRect(-7, -58, 14, 62);
-    ctx.fillStyle = '#8a8a8a';
-    ctx.fillRect(-5, -56, 10, 18);
-    ctx.fillStyle = '#555';
-    ctx.fillRect(-8, -62, 16, 6);
+    ctx.fillStyle = '#888';
+    ctx.fillRect(-4, -40, 8, 40);
+    ctx.fillStyle = '#aaa';
+    ctx.beginPath();
+    ctx.arc(0, -42, 5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
 
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < bullets.length; i++) {
-      const b = bullets[i];
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillStyle = '#c9a227';
+    ctx.beginPath();
+    ctx.moveTo(400, 560);
+    ctx.lineTo(388, 600);
+    ctx.lineTo(412, 600);
+    ctx.closePath();
+    ctx.fill();
 
     for (let i = 0; i < planes.length; i++) {
       const p = planes[i];
       ctx.save();
       ctx.translate(p.x, p.y);
-      if (p.vx < 0) ctx.scale(-1, 1);
-      ctx.fillStyle = '#5a6a7a';
-      ctx.fillRect(-28, -8, 56, 16);
-      ctx.fillStyle = '#4a5a6a';
-      ctx.fillRect(-10, -18, 30, 8);
-      ctx.fillRect(-28, -16, 10, 10);
-      ctx.strokeStyle = '#ccc';
-      ctx.lineWidth = 2;
+      ctx.scale(p.vx < 0 ? -1 : 1, 1);
+      ctx.fillStyle = '#9aa';
       ctx.beginPath();
-      ctx.moveTo(28, 0);
-      ctx.lineTo(38, -6);
-      ctx.moveTo(28, 0);
-      ctx.lineTo(38, 6);
-      ctx.stroke();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-18, -6);
+      ctx.lineTo(-14, 0);
+      ctx.lineTo(-18, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#666';
+      ctx.fillRect(-6, -10, 10, 5);
       ctx.restore();
     }
 
     for (let i = 0; i < soldiers.length; i++) {
       const s = soldiers[i];
-      ctx.fillStyle = '#e74c3c';
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(s.x - 3, s.y, 6, 14);
+      ctx.fillStyle = '#f1c40f';
       ctx.beginPath();
-      ctx.ellipse(s.x, s.y - 18, 14, 8, 0, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y - 6, 7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#aaa';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(s.x - 10, s.y - 14);
-      ctx.lineTo(s.x, s.y);
-      ctx.moveTo(s.x + 10, s.y - 14);
-      ctx.lineTo(s.x, s.y);
+      ctx.arc(s.x, s.y - 6, 11, 0.2, Math.PI - 0.2);
       ctx.stroke();
-      ctx.fillStyle = '#2c3e50';
-      ctx.fillRect(s.x - 5, s.y, 10, 14);
-      ctx.fillStyle = '#f5cba7';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     for (let i = 0; i < groundSoldiers.length; i++) {
       const g = groundSoldiers[i];
-      ctx.fillStyle = '#2c3e50';
-      ctx.fillRect(g.x - 6, g.y - 16, 12, 16);
-      ctx.fillStyle = '#f5cba7';
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(g.x - 4, g.y - 16, 8, 16);
+      ctx.fillStyle = '#f39c12';
+      ctx.fillRect(g.x - 5, g.y - 20, 10, 5);
+    }
+
+    for (let i = 0; i < bullets.length; i++) {
+      const b = bullets[i];
+      ctx.fillStyle = '#ffe066';
       ctx.beginPath();
-      ctx.arc(g.x, g.y - 18, 5, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
-      const leg = Math.sin(performance.now() / 100) * 4;
-      ctx.strokeStyle = '#1a252f';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(g.x - 3, g.y);
-      ctx.lineTo(g.x - 3 + leg, g.y + 8);
-      ctx.moveTo(g.x + 3, g.y);
-      ctx.lineTo(g.x + 3 - leg, g.y + 8);
-      ctx.stroke();
     }
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
-      ctx.globalAlpha = Math.min(1, p.life / 15);
+      ctx.globalAlpha = Math.max(0, p.life / 30);
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
   }
 
-  let lastTime = 0;
   function loop(ts) {
     if (!gameRunning) return;
-    const dt = Math.min(32, ts - lastTime);
-    lastTime = ts;
-    update(dt);
+    update(16);
     draw();
     requestAnimationFrame(loop);
   }
 
   function endGame() {
     gameRunning = false;
-    hud.style.display = 'none';
-    hint.style.display = 'none';
-    if (muteBtn) muteBtn.style.display = 'none';
     sfxGameOver();
+    if (muteBtn) muteBtn.style.display = 'none';
+    hint.style.display = 'none';
     const top = saveScore(playerName, score);
-    finalMsg.innerHTML = '<strong>' + escapeHtml(playerName) + '</strong> scored <strong>' + score + '</strong> points!';
+    renderHighScores();
+    finalMsg.textContent = playerName + ' scored ' + score + ' points';
     gameOverScreen.style.display = 'flex';
   }
-
-  draw();
 })();
-  </script>
+</script>
 </body>
 </html>
